@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Quản lý thuê phòng trọ</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+    <h1>Quản lý thuê phòng trọ</h1>
+
+    <input type="text" id="search" placeholder="🔍 Tìm theo mã phòng hoặc tên người thuê..." />
+
+    <button id="show-form-btn">➕ Thêm mới</button>
+
+    <div id="modal-overlay">
+        <div id="room-form-container">
+            <form id="room-form">
+                <div class="form-group">
+                    <label for="tenantName">Tên người thuê *</label>
+                    <input type="text" id="tenantName" placeholder="Nhập tên người thuê" required />
+
+                    <label for="phone">Số điện thoại</label>
+                    <input type="text" id="phone" placeholder="Nhập số điện thoại" />
+
+                    <label for="startDate">Ngày bắt đầu thuê *</label>
+                    <input type="date" id="startDate" required />
+
+                    <label for="paymentMethod">Hình thức thanh toán *</label>
+                    <select id="paymentMethod" required>
+                        <option value="">Chọn hình thức thanh toán</option>
+                    </select>
+
+                    <label for="note">Ghi chú</label>
+                    <input type="text" id="note" placeholder="Nhập ghi chú" />
+                </div>
+
+                <div class="form-buttons">
+                    <button type="submit">✅ Tạo mới</button>
+                    <button type="button" id="cancel-btn">❌ Huỷ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Mã phòng</th>
+                <th>Tên người thuê</th>
+                <th>Số điện thoại</th>
+                <th>Ngày bắt đầu</th>
+                <th>Hình thức thanh toán</th>
+                <th>Ghi chú</th>
+                <th>Hành động</th>
+                <th>Xóa nhiều</th>
+            </tr>
+        </thead>
+        <tbody id="room-list"></tbody>
+    </table>
+
+    <div id="delete-confirmation" style="display: none;">
+        <div id="delete-confirm-container">
+            <h3>Bạn có chắc chắn muốn xóa các phòng đã chọn không?</h3>
+            <button id="confirm-delete">Xóa</button>
+            <button id="cancel-delete">Hủy</button>
+        </div>
+    </div>
+
+    <script>
+        const API = "http://localhost:3000";
+        const roomList = document.getElementById("room-list");
+        const form = document.getElementById("room-form");
+        const formContainer = document.getElementById("room-form-container");
+        const showFormBtn = document.getElementById("show-form-btn");
+        const cancelBtn = document.getElementById("cancel-btn");
+        const search = document.getElementById("search");
+        const paymentSelect = document.getElementById("paymentMethod");
+
+
+        let allRooms = [];
+
+        const modalOverlay = document.getElementById("modal-overlay");
+
+        showFormBtn.addEventListener("click", () => {
+            modalOverlay.style.display = "flex";
+        });
+
+        cancelBtn.addEventListener("click", () => {
+            form.reset();
+            modalOverlay.style.display = "none";
+        });
+
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const phone = document.getElementById("phone").value.trim();
+            if (phone && !/^(0[0-9]{9,10})$/.test(phone)) {
+                alert("Số điện thoại không hợp lệ!");
+                return;
+            }
+
+            const newRoom = {
+                tenantName: document.getElementById("tenantName").value.trim(),
+                phone: phone,
+                startDate: document.getElementById("startDate").value,
+                paymentMethodId: parseInt(document.getElementById("paymentMethod").value),
+                note: document.getElementById("note").value.trim(),
+            };
+
+            await fetch(`${API}/rooms`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(newRoom)
+            });
+
+            form.reset();
+            modalOverlay.style.display = "none";
+            await loadRooms();
+        });
+
+
+        async function loadPaymentMethods() {
+            const res = await fetch(`${API}/payment_methods`);
+            const data = await res.json();
+            paymentSelect.innerHTML = data.map(method =>
+                `<option value="${method.id}">${method.name}</option>`
+            ).join("");
+        }
+
+        async function loadRooms() {
+            const res = await fetch(`${API}/rooms`);
+            const data = await res.json();
+            allRooms = data;
+            renderRooms(data);
+        }
+
+        function renderRooms(rooms) {
+            roomList.innerHTML = "";
+            rooms.forEach(room => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+          <td>${room.id}</td>
+          <td>${room.tenant_name}</td>
+          <td>${room.phone || ""}</td>
+          <td>${room.start_date}</td>
+          <td>${room.payment_method}</td>
+          <td>${room.note || ""}</td>
+          <td><button onclick="deleteRoom(${room.id})">🗑️ Xoá</button></td>
+          <td><input type="checkbox" class="room-checkbox" data-id="${room.id}" onchange="handleCheckboxChange(${room.id}, this.checked)" /></td>
+        `;
+                roomList.appendChild(tr);
+            });
+        }
+
+        async function deleteRoom(id) {
+            await fetch(`${API}/rooms/${id}`, { method: "DELETE" });
+            await loadRooms();
+        }
+
+        search.addEventListener("input", () => {
+            const keyword = search.value.toLowerCase();
+            const filtered = allRooms.filter(room =>
+                room.id.toString().includes(keyword) ||
+                room.tenant_name.toLowerCase().includes(keyword)
+            );
+            renderRooms(filtered);
+        });
+
+        loadPaymentMethods();
+        loadRooms();
+    </script>
+</body>
+
+</html>
